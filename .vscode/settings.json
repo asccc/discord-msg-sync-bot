@@ -1,0 +1,9 @@
+{
+  "makefile.launchConfigurations": [
+    {
+      "cwd": "/home/asc/Projekte/discord-news-sync",
+      "binaryPath": "/home/asc/Projekte/discord-news-sync/discord_news_sync",
+      "binaryArgs": []
+    }
+  ]
+}
