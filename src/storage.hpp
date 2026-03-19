@@ -2,12 +2,15 @@
 
 #include <dpp/snowflake.h>
 #include <mariadb/mysql.h>
+#include <mutex>
 #include <string>
+#include <vector>
 
 namespace psdns {
   class storage final 
   {
     MYSQL *m_con = nullptr;
+    std::mutex m_mutex;
     
   public:
     /**
@@ -44,13 +47,20 @@ namespace psdns {
     void insert(
       const dpp::snowflake&,
       const std::string&, 
-      const std::string&) const;
+      const std::string&);
 
     /**
      * removes a message (flags the message as delted)
      * 
      * @param id the message id
      */
-    void remove(const dpp::snowflake&) const;
+    void remove(const dpp::snowflake&);
+
+    /**
+     * removes multiple messages
+     * 
+     * @param ids the message ids
+     */
+    void remove_all(const std::vector<dpp::snowflake>&);
   };
 }

@@ -1,6 +1,7 @@
 #include "storage.hpp"
 
 #include <cstdlib>
+#include <dpp/dispatcher.h>
 #include <dpp/dpp.h>
 #include <dpp/snowflake.h>
 
@@ -45,6 +46,13 @@ int main(void)
       return; // do not handle
     }
     store.remove(event.id);
+  });
+
+  bot.on_message_delete_bulk([&](const dpp::message_delete_bulk_t& event) {
+    if (event.deleting_channel.id != channel) {
+      return; // do not handle
+    }
+    store.remove_all(event.deleted);
   });
 
   bot.start(dpp::st_wait);

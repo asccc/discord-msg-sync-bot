@@ -3,9 +3,11 @@
 #include <dpp/snowflake.h>
 #include <mariadb/mariadb_com.h>
 #include <mariadb/mysql.h>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <cstring>
+#include <vector>
 
 namespace psdns {
 
@@ -33,6 +35,9 @@ namespace psdns {
       mysql_close(con);
       throw std::runtime_error{"could not set default charset: " + err};
     }
+
+    bool reconnect = true;
+    mysql_options(con, MYSQL_OPT_RECONNECT, &reconnect);
 
     auto host_s = host.c_str();
     auto user_s = user.c_str();
@@ -74,8 +79,14 @@ namespace psdns {
   void storage::insert(
     const dpp::snowflake& id,
     const std::string& author, 
-    const std::string& content) const
+    const std::string& content)
   {
+    const auto lock = std::lock_guard<std::mutex>{m_mutex};
+
+    if (0 != mysql_ping(m_con)) {
+      throw std::runtime_error{"mysql connection lost"};
+    }
+
     auto stmt = mysql_stmt_init(m_con);
     if (!stmt) {
       throw std::runtime_error{"could not init mysql statement"};
@@ -85,7 +96,6 @@ namespace psdns {
       "INSERT INTO news (id, server_id, author, content, created_at) "
       "VALUES (?, 1, ?, ?, UNIX_TIMESTAMP()) "
       "ON DUPLICATE KEY UPDATE "
-        "author = VALUES(author), "
         "content = VALUES(content), "
         "updated_at = UNIX_TIMESTAMP()";
 
@@ -129,8 +139,14 @@ namespace psdns {
    * 
    * @param id the message id
    */
-  void storage::remove(const dpp::snowflake& id) const
+  void storage::remove(const dpp::snowflake& id)
   {
+    const auto lock = std::lock_guard<std::mutex>{m_mutex};
+
+    if (0 != mysql_ping(m_con)) {
+      throw std::runtime_error{"mysql connection lost"};
+    }
+
     auto stmt = mysql_stmt_init(m_con);
     if (!stmt) {
       throw std::runtime_error{"could not init mysql statement"};
@@ -160,6 +176,60 @@ namespace psdns {
       auto err = std::string{mysql_stmt_error(stmt)};
       mysql_stmt_close(stmt);
       throw std::runtime_error{"error while executing statement: " + err};
+    }
+
+    mysql_stmt_close(stmt);
+  }
+
+  /**
+   * removes multiple messages
+   * 
+   * @param ids the message ids
+   */
+  void storage::remove_all(const std::vector<dpp::snowflake>& ids)
+  {
+    if (ids.empty()) {
+      // nothing to do
+      return;
+    }
+    
+    const auto lock = std::lock_guard<std::mutex>{m_mutex};
+
+    if (0 != mysql_ping(m_con)) {
+      throw std::runtime_error{"mysql connection lost"};
+    }
+
+    auto stmt = mysql_stmt_init(m_con);
+    if (!stmt) {
+      throw std::runtime_error{"could not init mysql statement"};
+    }
+
+    auto query =
+      "UPDATE news SET is_deleted = TRUE, deleted_at = UNIX_TIMESTAMP() "
+      "WHERE id = ? AND server_id = 1";
+
+    if (0 != mysql_stmt_prepare(stmt, query, std::strlen(query))) {
+      auto err = std::string{mysql_stmt_error(stmt)};
+      mysql_stmt_close(stmt);
+      throw std::runtime_error{"could not prepare statement: " + err};
+    }
+
+    MYSQL_BIND bind[1];
+    std::memset(bind, 0, sizeof(bind));
+
+    for (const auto& id : ids) {
+      auto id_str = std::to_string(id);
+      auto id_len = id_str.length();
+      bind[0].buffer_type = MYSQL_TYPE_STRING;
+      bind[0].buffer = const_cast<char*>(id_str.c_str());
+      bind[0].length = &id_len;
+
+      mysql_stmt_bind_param(stmt, bind);
+      if (0 != mysql_stmt_execute(stmt)) {
+        auto err = std::string{mysql_stmt_error(stmt)};
+        mysql_stmt_close(stmt);
+        throw std::runtime_error{"error while executing statement: " + err};
+      }
     }
 
     mysql_stmt_close(stmt);

@@ -1,7 +1,7 @@
 TARGET   = discord-news-sync
 BOT_USER = peakstreams
 CXX      = g++
-CXXFLAGS = -std=c++17 -O3 -Wall
+CXXFLAGS = -std=c++17 -O3 -Wall -DNDEBUG
 LDFLAGS  = $(shell pkg-config --libs dpp) -lmariadb
 INCLUDE  = $(shell pkg-config --cflags dpp)
 
