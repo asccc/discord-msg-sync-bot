@@ -35,7 +35,7 @@ int main(void)
       const auto& snapshots = event.msg.message_snapshots;
       for (const auto& message : snapshots.messages) {
         auto content = message.content;
-        auto author = message.author.username.empty() ?
+        const auto& author = message.author.username.empty() ?
           event.msg.author.username :
           message.author.username;
 
