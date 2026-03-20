@@ -27,7 +27,7 @@ namespace psdns {
   {
     MYSQL *con = nullptr;
     if (!(con = mysql_init(nullptr))) {
-      throw std::runtime_error{"could init mysql"};
+      throw std::runtime_error{"could not init mysql"};
     }
 
     if (0 != mysql_options(con, MYSQL_SET_CHARSET_NAME, "utf8mb4")) {
@@ -65,7 +65,6 @@ namespace psdns {
   {
     if (m_con) {
       mysql_close(m_con);
-      m_con = nullptr;
     }
   }
 
@@ -141,44 +140,7 @@ namespace psdns {
    */
   void storage::remove(const dpp::snowflake& id)
   {
-    const auto lock = std::lock_guard<std::mutex>{m_mutex};
-
-    if (0 != mysql_ping(m_con)) {
-      throw std::runtime_error{"mysql connection lost"};
-    }
-
-    auto stmt = mysql_stmt_init(m_con);
-    if (!stmt) {
-      throw std::runtime_error{"could not init mysql statement"};
-    }
-
-    auto query =
-      "UPDATE news SET is_deleted = TRUE, deleted_at = UNIX_TIMESTAMP() "
-      "WHERE id = ? AND server_id = 1";
-
-    if (0 != mysql_stmt_prepare(stmt, query, std::strlen(query))) {
-      auto err = std::string{mysql_stmt_error(stmt)};
-      mysql_stmt_close(stmt);
-      throw std::runtime_error{"could not prepare statement: " + err};
-    }
-
-    MYSQL_BIND bind[1];
-    std::memset(bind, 0, sizeof(bind));
-
-    auto id_str = std::to_string(id);
-    auto id_len = id_str.length();
-    bind[0].buffer_type = MYSQL_TYPE_STRING;
-    bind[0].buffer = const_cast<char*>(id_str.c_str());
-    bind[0].length = &id_len;
-
-    mysql_stmt_bind_param(stmt, bind);
-    if (0 != mysql_stmt_execute(stmt)) {
-      auto err = std::string{mysql_stmt_error(stmt)};
-      mysql_stmt_close(stmt);
-      throw std::runtime_error{"error while executing statement: " + err};
-    }
-
-    mysql_stmt_close(stmt);
+    remove_all({ id });
   }
 
   /**

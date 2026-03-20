@@ -1,3 +1,4 @@
 discord-news-sync
-discord-news-sync.env
+.env
+*.env
 *.o

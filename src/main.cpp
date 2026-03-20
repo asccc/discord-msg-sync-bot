@@ -8,8 +8,10 @@
 int main(void)
 {
   auto store = psdns::storage{
-    std::getenv("DB_HOST"), std::getenv("DB_USERNAME"), 
-    std::getenv("DB_PASSWORD"), std::getenv("DB_NAME")};
+    std::getenv("DB_HOST"),
+    std::getenv("DB_USERNAME"), 
+    std::getenv("DB_PASSWORD"), 
+    std::getenv("DB_NAME")};
 
   auto channel = dpp::snowflake{std::getenv("CHANNEL_ID")};
 
@@ -25,20 +27,56 @@ int main(void)
     if (event.msg.channel_id != channel) {
       return; // do not handle
     }
-    store.insert(
-      event.msg.id,
-      event.msg.author.username, 
-      event.msg.content);
+
+    const auto& id = event.msg.id;
+
+    // handle snapshots
+    if (event.msg.has_snapshot()) {
+      const auto& snapshots = event.msg.message_snapshots;
+      for (const auto& message : snapshots.messages) {
+        auto content = message.content;
+        auto author = message.author.username.empty() ?
+          event.msg.author.username :
+          message.author.username;
+
+        if (!message.embeds.empty()) {
+          // use embed author?
+          content += message.embeds[0].description;
+        }
+
+        store.insert(id, author, content);
+      }
+      return;
+    }
+
+    // handle normal messages
+    const auto& author = event.msg.author.username;
+    auto content = event.msg.content;
+
+    if (!event.msg.embeds.empty()) {
+      // use embed author?
+      content += event.msg.embeds[0].description;
+    }
+
+    store.insert(id, author, content);
   });
 
   bot.on_message_update([&](const dpp::message_update_t& event) {
     if (event.msg.channel_id != channel) {
       return; // do not handle
     }
-    store.insert(
-      event.msg.id, 
-      event.msg.author.username,
-      event.msg.content);
+    
+    // only normal messages can update
+    const auto& id = event.msg.id;
+    const auto& author = event.msg.author.username;
+    auto content = event.msg.content;
+
+    if (!event.msg.embeds.empty()) {
+      // use embed author?
+      content += event.msg.embeds[0].description;
+    }
+
+    store.insert(id, author, content);
   });
 
   bot.on_message_delete([&](const dpp::message_delete_t& event) {

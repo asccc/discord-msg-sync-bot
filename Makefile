@@ -1,7 +1,7 @@
 TARGET   = discord-news-sync
 BOT_USER = peakstreams
 CXX      = g++
-CXXFLAGS = -std=c++17 -O3 -Wall -DNDEBUG
+CXXFLAGS = -std=c++17 -Wall -Wextra -pedantic
 LDFLAGS  = $(shell pkg-config --libs dpp) -lmariadb
 INCLUDE  = $(shell pkg-config --cflags dpp)
 
@@ -15,6 +15,12 @@ OBJS = $(SRCS:.cpp=.o)
 
 all: $(TARGET)
 
+debug: CXXFLAGS += -g -DDEBUG
+debug: clean $(TARGET)
+
+release: CXXFLAGS += -DNDEBUG -O3
+release: clean $(TARGET)
+
 $(TARGET): $(OBJS)
 	@echo "Linking $@..."
 	$(CXX) $(OBJS) -o $(TARGET) $(LDFLAGS)
@@ -23,10 +29,13 @@ $(TARGET): $(OBJS)
 	@echo "Compiling $<..."
 	$(CXX) $(CXXFLAGS) $(INCLUDE) -c $< -o $@
 
+run:
+	env $$(cat ./discord-news-sync.local.env | xargs) ./$(TARGET)
+
 clean:
 	rm -f $(OBJS) $(TARGET)
 
-install: all
+install: release
 	@echo "Installing binary to $(BINDIR)..."
 	install -m 755 $(TARGET) $(BINDIR)/$(TARGET)
 	chown $(BOT_USER):$(BOT_USER) $(BINDIR)/$(TARGET)
